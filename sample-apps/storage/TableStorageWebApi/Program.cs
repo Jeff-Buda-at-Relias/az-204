@@ -8,6 +8,9 @@ using Microsoft.Extensions.Hosting;
 using Azure.Storage.Queues;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
+using StackExchange.Redis;
+using Microsoft.Extensions.Caching.StackExchangeRedis;
+using Microsoft.Extensions.Caching.Distributed;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -19,8 +22,6 @@ builder.Configuration.AddAzureAppConfiguration((options) =>
            {
                kv.SetCredential(new DefaultAzureCredential());
            });
-
-
 });
 
 // Add Azure Table Service Client
@@ -29,6 +30,13 @@ builder.Services.AddAzureClients(b =>
     b.AddTableServiceClient(builder.Configuration.GetConnectionString("TableStorage"));
     b.AddQueueServiceClient(builder.Configuration.GetConnectionString("QueueStorage"));
 });
+
+builder.Services.AddStackExchangeRedisCache(options =>
+{
+    options.Configuration = builder.Configuration.GetConnectionString("RedisCache");
+});
+
+//TODO: Write values to: CosmosDB, Blob Storage, Redis, Service Bus, Event Grid, Event Hub, CDN, 
 
 var app = builder.Build();
 
@@ -54,7 +62,8 @@ async (
     string itemKey,
     [FromBody] TableEntity entity,
     TableServiceClient tableServiceClient,
-    QueueServiceClient queueServiceClient) =>
+    QueueServiceClient queueServiceClient,
+    IDistributedCache redisCache) =>
 {
     // write to Azure Table Storage
     var tableClient = tableServiceClient.GetTableClient(app.Configuration[AppConfigKeyNames.TableStorageTableName]);
@@ -66,6 +75,9 @@ async (
     var queueClient = queueServiceClient.GetQueueClient(app.Configuration[AppConfigKeyNames.QueueStorageQueueName]);
     await queueClient.SendMessageAsync(JsonSerializer.Serialize(
         new { PartitionKey = partitionKey, RowKey = entity.RowKey }));
+
+    // write to Redis
+    redisCache.SetString($"{partitionKey}-{itemKey}", JsonSerializer.Serialize(entity));
 
     return Results.Created();
 });

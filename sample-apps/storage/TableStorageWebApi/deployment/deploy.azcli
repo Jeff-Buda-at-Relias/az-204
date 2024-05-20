@@ -29,6 +29,10 @@ echo $QUEUE_STORAGE_QUEUE_NAME
 export APP_CONFIG_NAME=$APP_NAME"AppConfigStore"
 echo $APP_CONFIG_NAME
 
+## Redis Cache name
+export REDIS_CACHE_NAME=$APP_NAME"RedisCache"
+echo $REDIS_CACHE_NAME
+
 #### Create resources ####
 
 ## Create a resource group
@@ -81,6 +85,11 @@ az appconfig kv set --name $APP_CONFIG_NAME --key "QueueStorageUrl" --value $QUE
 ## Set the queue storage queue name in the app config store
 az appconfig kv set --name $APP_CONFIG_NAME --key "QueueStorageQueueName" --value $QUEUE_STORAGE_QUEUE_NAME --yes
 
+#### Redis Cache ####
+
+## Create a Redis cache
+az redis create --name $REDIS_CACHE_NAME --resource-group $RESOURCE_GROUP_NAME --location $LOCATION --sku Basic --vm-size c0
+
 
 #### List the resources created ####
 
@@ -96,3 +105,6 @@ az resource list --resource-group $RESOURCE_GROUP_NAME --output table
 
 ## List the connection strings for local development secrets.json file
 az storage account show-connection-string --name $STORAGE_ACCOUNT_NAME --query connectionString --output tsv
+
+## List the primary key for the Redis cache
+az redis list-keys --name $REDIS_CACHE_NAME --resource-group $RESOURCE_GROUP_NAME --query primaryKey --output tsv
