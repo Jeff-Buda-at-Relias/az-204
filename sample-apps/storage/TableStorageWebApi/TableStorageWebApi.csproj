@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>8bec618b-b233-431f-97a9-fc075206c5b7</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Azure.Data.Tables" Version="12.8.3" />
+    <PackageReference Include="Azure.Identity" Version="1.11.3" />
+    <PackageReference Include="Microsoft.Azure.AppConfiguration.AspNetCore" Version="7.2.0" />
+    <PackageReference Include="Microsoft.Extensions.Azure" Version="1.7.3" />
+  </ItemGroup>
+
+</Project>

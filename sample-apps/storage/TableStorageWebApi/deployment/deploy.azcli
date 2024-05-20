@@ -1,0 +1,60 @@
+## log in and switch to Relias Playground
+az login
+az account set --subscription "Enterprise Dev/Test"
+
+# Create env vars
+export APP_NAME="budaSampleApp"
+export LOCATION="eastus"
+export RESOURCE_GROUP_NAME=$APP_NAME"RG"
+export TEAM_NAME="Async Operators"
+export MANAGER="Warren"
+export PRIMARY_CONTACT="Jeff Buda"
+export DATE_CREATED="2024-05-18"
+
+## Storage name must be all lowercase
+storageName=$APP_NAME"Storage" 
+export STORAGE_ACCOUNT_NAME=${storageName,,}
+
+## App Config: table storage table name
+export TABLE_STORAGE_TABLE_NAME="ItemTable"
+
+export APP_CONFIG_NAME=$APP_NAME"AppConfigStore"
+
+
+## Create a resource group
+az group create --name "$RESOURCE_GROUP_NAME" --location "$LOCATION" --tags "Team Name"="$TEAM_NAME" "Manager"="$MANAGER" "Primary Contact"="$PRIMARY_CONTACT" "Date Created"="$DATE_CREATED"
+
+## Create a storage account
+az storage account create --name $STORAGE_ACCOUNT_NAME --resource-group $RESOURCE_GROUP_NAME --location $LOCATION --sku Standard_LRS
+
+## Create app config store
+az appconfig create --name $APP_CONFIG_NAME --resource-group $RESOURCE_GROUP_NAME --location $LOCATION --sku Standard
+
+## List all app config connection string which is needed in the secrets.json file
+az appconfig credential list --name $APP_CONFIG_NAME --query "[?name=='Primary Read Only'].connectionString" --output tsv
+
+## Get App Config store URL
+export APP_CONFIG_URL=$(az appconfig show --name $APP_CONFIG_NAME --query endpoint --output tsv)
+echo $APP_CONFIG_URL
+
+## Get storage account connection string
+export STORAGE_CONNECTION_STRING=$(az storage account show-connection-string --name $STORAGE_ACCOUNT_NAME --resource-group $RESOURCE_GROUP_NAME --query connectionString --output tsv)
+
+## Create a table in the storage account
+az storage table create --name $TABLE_STORAGE_TABLE_NAME --connection-string $STORAGE_CONNECTION_STRING
+
+## List all tables in the storage account
+az storage table list --account-name $STORAGE_ACCOUNT_NAME --output table
+
+## Get and store the table storage URL
+export TABLE_STORAGE_URL=$(az storage account show --name $STORAGE_ACCOUNT_NAME --resource-group $RESOURCE_GROUP_NAME --query primaryEndpoints.table --output tsv)
+echo $TABLE_STORAGE_URL
+
+## Set the table storage URL in the app config store
+az appconfig kv set --name $APP_CONFIG_NAME --key "TableStorageUrl" --value $TABLE_STORAGE_URL --yes
+
+## Set the table storage table name in the app config store
+az appconfig kv set --name $APP_CONFIG_NAME --key "TableStorageTableName" --value $TABLE_STORAGE_TABLE_NAME --yes
+
+## List all the keys in the app config store
+az appconfig kv list --name $APP_CONFIG_NAME --output table
