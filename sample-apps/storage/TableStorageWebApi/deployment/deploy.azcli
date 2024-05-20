@@ -93,3 +93,6 @@ az appconfig kv list --name $APP_CONFIG_NAME --output table
 
 ## List the resource group contents ##
 az resource list --resource-group $RESOURCE_GROUP_NAME --output table
+
+## List the connection strings for local development secrets.json file
+az storage account show-connection-string --name $STORAGE_ACCOUNT_NAME --query connectionString --output tsv

@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Azure.Storage.Queues;
 using System.Text.Json;
+using Microsoft.AspNetCore.Mvc;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -25,8 +26,8 @@ builder.Configuration.AddAzureAppConfiguration((options) =>
 // Add Azure Table Service Client
 builder.Services.AddAzureClients(b =>
 {
-    b.AddTableServiceClient(new Uri(builder.Configuration[AppConfigKeyNames.TableStorageUrl]!));
-    b.AddQueueServiceClient(new Uri(builder.Configuration[AppConfigKeyNames.QueueStorageUrl]!));
+    b.AddTableServiceClient(builder.Configuration.GetConnectionString("TableStorage"));
+    b.AddQueueServiceClient(builder.Configuration.GetConnectionString("QueueStorage"));
 });
 
 var app = builder.Build();
@@ -50,13 +51,15 @@ app.MapPost(
     "/partition/{partitionKey}/item/{itemKey}",
 async (
     string partitionKey,
-    string tableName,
-    TableEntity entity,
+    string itemKey,
+    [FromBody] TableEntity entity,
     TableServiceClient tableServiceClient,
     QueueServiceClient queueServiceClient) =>
 {
     // write to Azure Table Storage
     var tableClient = tableServiceClient.GetTableClient(app.Configuration[AppConfigKeyNames.TableStorageTableName]);
+    entity.PartitionKey = partitionKey;
+    entity.RowKey = itemKey;
     await tableClient.AddEntityAsync(entity);
 
     // write to Azure Queue Storage
@@ -64,7 +67,7 @@ async (
     await queueClient.SendMessageAsync(JsonSerializer.Serialize(
         new { PartitionKey = partitionKey, RowKey = entity.RowKey }));
 
-    return Results.Created($"/partition/{partitionKey}/{tableName}/{entity.RowKey}", entity);
+    return Results.Created();
 });
 
 app.MapPut("/table/{tableName}/{rowKey}", async (string tableName, string rowKey, TableEntity entity, TableServiceClient tableServiceClient) =>
