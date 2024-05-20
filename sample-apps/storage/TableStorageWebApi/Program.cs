@@ -5,28 +5,29 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Azure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-
+using Azure.Storage.Queues;
+using System.Text.Json;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add Azure App Configuration
 builder.Configuration.AddAzureAppConfiguration((options) =>
 {
-    options.Connect(builder.Configuration[AppConfigKeys.AppConfigUrl])
+    options.Connect(builder.Configuration[AppConfigKeyNames.AppConfigUrl])
            .ConfigureKeyVault(kv =>
            {
                kv.SetCredential(new DefaultAzureCredential());
            });
 
+
 });
-var tableServiceUri = builder.Configuration[AppConfigKeys.TableStorageUrl]!;
 
 // Add Azure Table Service Client
-builder.Services.AddAzureClients(builder =>
+builder.Services.AddAzureClients(b =>
 {
-    builder.AddTableServiceClient(new Uri(tableServiceUri));
+    b.AddTableServiceClient(new Uri(builder.Configuration[AppConfigKeyNames.TableStorageUrl]!));
+    b.AddQueueServiceClient(new Uri(builder.Configuration[AppConfigKeyNames.QueueStorageUrl]!));
 });
-
 
 var app = builder.Build();
 
@@ -39,17 +40,31 @@ app.MapGet("/", () => "Jeff's AZ-204 demo app");
 
 app.MapGet("/partition/{partitionKey}/item/{itemKey}", async (string partitionKey, string itemKey, TableServiceClient tableServiceClient) =>
 {
-    var tableClient = tableServiceClient.GetTableClient(app.Configuration[AppConfigKeys.TableStorageTableName]);
+    var tableClient = tableServiceClient.GetTableClient(app.Configuration[AppConfigKeyNames.TableStorageTableName]);
     var response = await tableClient.GetEntityAsync<TableEntity>(partitionKey, itemKey);
-    
+
     return Results.Ok(response.Value);
 });
 
-app.MapPost("/table/{tableName}", async (string tableName, TableEntity entity, TableServiceClient tableServiceClient) =>
+app.MapPost(
+    "/partition/{partitionKey}/item/{itemKey}",
+async (
+    string partitionKey,
+    string tableName,
+    TableEntity entity,
+    TableServiceClient tableServiceClient,
+    QueueServiceClient queueServiceClient) =>
 {
-    var tableClient = tableServiceClient.GetTableClient(tableName);
+    // write to Azure Table Storage
+    var tableClient = tableServiceClient.GetTableClient(app.Configuration[AppConfigKeyNames.TableStorageTableName]);
     await tableClient.AddEntityAsync(entity);
-    return Results.Created($"/table/{tableName}/{entity.RowKey}", entity);
+
+    // write to Azure Queue Storage
+    var queueClient = queueServiceClient.GetQueueClient(app.Configuration[AppConfigKeyNames.QueueStorageQueueName]);
+    await queueClient.SendMessageAsync(JsonSerializer.Serialize(
+        new { PartitionKey = partitionKey, RowKey = entity.RowKey }));
+
+    return Results.Created($"/partition/{partitionKey}/{tableName}/{entity.RowKey}", entity);
 });
 
 app.MapPut("/table/{tableName}/{rowKey}", async (string tableName, string rowKey, TableEntity entity, TableServiceClient tableServiceClient) =>
@@ -68,10 +83,12 @@ app.MapDelete("/table/{tableName}/{rowKey}", async (string tableName, string row
 
 app.Run();
 
-public static class AppConfigKeys
+public static class AppConfigKeyNames
 {
-    public const string AppConfigUrl = "AppConfigUrl";
-    public const string TableStorageUrl = "TableStorageUrl";
-    public const string TableStorageTableName = "ItemTable";
+    public const string AppConfigUrl = nameof(AppConfigKeyNames.AppConfigUrl);
+    public const string TableStorageUrl = nameof(AppConfigKeyNames.TableStorageUrl);
+    public const string TableStorageTableName = nameof(AppConfigKeyNames.TableStorageTableName);
+    public const string QueueStorageUrl = nameof(AppConfigKeyNames.QueueStorageUrl);
+    public const string QueueStorageQueueName = nameof(AppConfigKeyNames.QueueStorageQueueName);
 
 }
