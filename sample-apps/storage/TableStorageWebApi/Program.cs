@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Mvc;
 using StackExchange.Redis;
 using Microsoft.Extensions.Caching.StackExchangeRedis;
 using Microsoft.Extensions.Caching.Distributed;
+using Azure.Messaging.EventGrid;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -31,10 +32,16 @@ builder.Services.AddAzureClients(b =>
     b.AddQueueServiceClient(builder.Configuration.GetConnectionString("QueueStorage"));
 });
 
+// Add Redis Client
 builder.Services.AddStackExchangeRedisCache(options =>
 {
     options.Configuration = builder.Configuration.GetConnectionString("RedisCache");
 });
+
+// Add Event Grid Client
+builder.Services.AddSingleton(x => new EventGridPublisherClient(
+    new Uri(builder.Configuration["EventGrid:TopicEndpoint"]),
+    new AzureKeyCredential(builder.Configuration["EventGrid:TopicKey"])));
 
 //TODO: Write values to: CosmosDB, Blob Storage, Redis, Service Bus, Event Grid, Event Hub, CDN, 
 
@@ -81,7 +88,8 @@ async (
     [FromBody] TableEntity entity,
     TableServiceClient tableServiceClient,
     QueueServiceClient queueServiceClient,
-    IDistributedCache redisCache) =>
+    IDistributedCache redisCache,
+    EventGridPublisherClient eventGridPublisher) =>
 {
     // write to Azure Table Storage
     var tableClient = tableServiceClient.GetTableClient(app.Configuration[AppConfigKeyNames.TableStorageTableName]);
@@ -89,13 +97,18 @@ async (
     entity.RowKey = itemKey;
     await tableClient.AddEntityAsync(entity);
 
+    // item as JSON
+    var itemJson = JsonSerializer.Serialize(new { PartitionKey = partitionKey, RowKey = entity.RowKey });
+
     // write to Azure Queue Storage
     var queueClient = queueServiceClient.GetQueueClient(app.Configuration[AppConfigKeyNames.QueueStorageQueueName]);
-    await queueClient.SendMessageAsync(JsonSerializer.Serialize(
-        new { PartitionKey = partitionKey, RowKey = entity.RowKey }));
+    await queueClient.SendMessageAsync(itemJson);
 
     // write to Redis
-    redisCache.SetString($"{partitionKey}-{itemKey}", JsonSerializer.Serialize(entity));
+    await redisCache.SetStringAsync($"{partitionKey}-{itemKey}", JsonSerializer.Serialize(entity));
+
+    // write to Event Grid
+    await eventGridPublisher.SendEventAsync(new EventGridEvent(partitionKey, "ItemCreated", "0", itemJson));
 
     return Results.Created();
 });
