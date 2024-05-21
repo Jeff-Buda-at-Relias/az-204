@@ -43,7 +43,7 @@ builder.Services.AddSingleton(x => new EventGridPublisherClient(
     new Uri(builder.Configuration["EventGrid:TopicEndpoint"]),
     new AzureKeyCredential(builder.Configuration["EventGrid:TopicKey"])));
 
-//TODO: Write values to: CosmosDB, Blob Storage, Redis, Service Bus, Event Grid, Event Hub, CDN, 
+//TODO: Write values to: CosmosDB, Blob Storage, Service Bus, Event Hub, CDN, 
 
 var app = builder.Build();
 
