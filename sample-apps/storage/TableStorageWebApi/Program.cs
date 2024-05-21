@@ -47,8 +47,26 @@ if (app.Environment.IsDevelopment())
 
 app.MapGet("/", () => "Jeff's AZ-204 demo app");
 
-app.MapGet("/partition/{partitionKey}/item/{itemKey}", async (string partitionKey, string itemKey, TableServiceClient tableServiceClient) =>
+app.MapGet(
+    "/partition/{partitionKey}/item/{itemKey}", 
+    async (
+        string partitionKey, 
+        string itemKey,
+        [FromQuery] string source,
+        TableServiceClient tableServiceClient,
+        IDistributedCache redisCache) =>
 {
+    if("redis".Equals(source, StringComparison.OrdinalIgnoreCase))
+    {
+        // read from Redis
+        var json = await redisCache.GetStringAsync($"{partitionKey}-{itemKey}");
+        if(!string.IsNullOrWhiteSpace(json))
+        {
+            return Results.Ok(JsonSerializer.Deserialize(json, typeof(TableEntity)));
+        }
+        return Results.NotFound();
+    }
+
     var tableClient = tableServiceClient.GetTableClient(app.Configuration[AppConfigKeyNames.TableStorageTableName]);
     var response = await tableClient.GetEntityAsync<TableEntity>(partitionKey, itemKey);
 

@@ -107,4 +107,5 @@ az resource list --resource-group $RESOURCE_GROUP_NAME --output table
 az storage account show-connection-string --name $STORAGE_ACCOUNT_NAME --query connectionString --output tsv
 
 ## List the primary key for the Redis cache
+az redis show --name $REDIS_CACHE_NAME --resource-group $RESOURCE_GROUP_NAME --query [hostName,sslPort] --output tsv
 az redis list-keys --name $REDIS_CACHE_NAME --resource-group $RESOURCE_GROUP_NAME --query primaryKey --output tsv
