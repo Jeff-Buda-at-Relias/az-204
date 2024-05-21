@@ -140,6 +140,7 @@ az redis list-keys --name $REDIS_CACHE_NAME --resource-group $RESOURCE_GROUP_NAM
 ## Create a container registry
 az acr create --name $CONTAINER_REGISTRY_NAME --resource-group $RESOURCE_GROUP_NAME --sku Basic --admin-enabled true
 
+
 #### Build and push the image to the container registry ####
 
 ## 1) Log in to the container registry
@@ -162,6 +163,7 @@ az acr build --registry $CONTAINER_REGISTRY_NAME --image $ACR_REPOSITORY_LOGIN_S
 export REPOSITORY_NAME=$(az acr repository list --name $CONTAINER_REGISTRY_NAME --output tsv)
 echo $REPOSITORY_NAME
 
+
 #### Deploy the image to an Azure Container Instance ####
 
 ## 1) Get and store the image tag
@@ -177,5 +179,8 @@ echo $CONTAINER_REGISTRY_NAME.azurecr.io/$DOCKER_IMAGE_NAME:$CONTAINER_IMAGE_TAG
 echo $DOCKER_IMAGE_NAME
 
 ## 4) Create the container, using the access token to authenticate
-az container create --resource-group $RESOURCE_GROUP_NAME --name $DOCKER_IMAGE_NAME --image $CONTAINER_REGISTRY_NAME.azurecr.io/$DOCKER_IMAGE_NAME:$CONTAINER_IMAGE_TAG --registry-login-server $CONTAINER_REGISTRY_NAME.azurecr.io --registry-username 00000000-0000-0000-0000-000000000000 --registry-password $ACR_ACCESS_TOKEN --dns-name-label $APP_NAME --query ipAddress.fqdn
+az container create --resource-group $RESOURCE_GROUP_NAME --name $DOCKER_IMAGE_NAME --image $CONTAINER_REGISTRY_NAME.azurecr.io/$DOCKER_IMAGE_NAME:$CONTAINER_IMAGE_TAG --registry-login-server $CONTAINER_REGISTRY_NAME.azurecr.io --registry-username 00000000-0000-0000-0000-000000000000 --registry-password $ACR_ACCESS_TOKEN --dns-name-label $APP_NAME --query ipAddress.fqdn --ports 80 5000 5001
+
+##
+az container logs --resource-group $RESOURCE_GROUP_NAME --name $DOCKER_IMAGE_NAME
 
