@@ -3,6 +3,7 @@ az login
 az account set --subscription "Enterprise Dev/Test"
 
 #### Create env vars ####
+
 export APP_NAME="budaSampleApp"
 export LOCATION="eastus"
 export RESOURCE_GROUP_NAME=$APP_NAME"RG"
@@ -36,6 +37,11 @@ echo $REDIS_CACHE_NAME
 ## Event Grid topic name
 export EVENT_GRID_TOPIC_NAME=$APP_NAME"ItemAddedTopic"
 echo $EVENT_GRID_TOPIC_NAME
+
+## Container Registry name (must be all lowercase)
+containerRegistryName=$APP_NAME"ContainerRegistry"
+export CONTAINER_REGISTRY_NAME=${containerRegistryName,,}
+echo $CONTAINER_REGISTRY_NAME
 
 #### Create resources ####
 
@@ -108,6 +114,7 @@ echo $EVENT_GRID_TOPIC_KEY
 ## Get the Event Grid topic endpoint 
 az eventgrid topic show --name $EVENT_GRID_TOPIC_NAME --resource-group $RESOURCE_GROUP_NAME --query endpoint --output tsv
 
+
 #### List the resources created ####
 
 ## List the storage account contents ##
@@ -126,3 +133,29 @@ az storage account show-connection-string --name $STORAGE_ACCOUNT_NAME --query c
 ## List the primary key for the Redis cache
 az redis show --name $REDIS_CACHE_NAME --resource-group $RESOURCE_GROUP_NAME --query [hostName,sslPort] --output tsv
 az redis list-keys --name $REDIS_CACHE_NAME --resource-group $RESOURCE_GROUP_NAME --query primaryKey --output tsv
+
+
+#### Container Registry ####
+
+## Create a container registry
+az acr create --name $CONTAINER_REGISTRY_NAME --resource-group $RESOURCE_GROUP_NAME --sku Basic --admin-enabled true
+
+#### Build and push the image to the container registry ####
+
+## 1) Log in to the container registry
+az acr login --name $CONTAINER_REGISTRY_NAME --expose-token
+
+## 2) Get the ACR login server name
+export ACR_REPOSITORY_LOGIN_SERVER=$(az acr show --name $CONTAINER_REGISTRY_NAME --query loginServer --output tsv)
+echo $ACR_REPOSITORY_LOGIN_SERVER
+
+## 3) Create and store the image name (must be all lowercase)
+imageName=$APP_NAME 
+export DOCKER_IMAGE_NAME=${imageName,,}
+echo $DOCKER_IMAGE_NAME
+
+## 4) Build and push the image to the container registry
+az acr build --registry $CONTAINER_REGISTRY_NAME --image $ACR_REPOSITORY_LOGIN_SERVER/$DOCKER_IMAGE_NAME .
+
+## 5) List the images in the container registry
+az acr repository list --name $CONTAINER_REGISTRY_NAME --output table
